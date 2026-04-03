@@ -1,0 +1,11 @@
+config:
+  amplitude: n/a
+  duration: n/a
+  event_distribution: linear
+  frequency: n/a
+  log_type: endpoint
+  logging_level: INFO
+  no_events: 500
+  sample_rate: n/a
+  stretch: n/a
+  write_time: 0

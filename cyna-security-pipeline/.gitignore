@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+logs/*.log
+pgdata/
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+frontend/dist/
+api/_pipeline_status.json
+api/_feed_status.json

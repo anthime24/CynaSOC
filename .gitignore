@@ -1,0 +1,35 @@
+# Fichiers de travail exclus du repo
+CLAUDE.md
+plan_projet_cyna.md
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environnement
+.env
+cyna-security-pipeline/.env
+
+# Données générées
+cyna-security-pipeline/logs/*.log
+Security-Log-Generator/logs/*.log
+cyna-security-pipeline/pgdata/
+
+# Frontend build
+cyna-security-pipeline/frontend/dist/
+cyna-security-pipeline/frontend/node_modules/
+
+# Fichiers de statut pipeline
+cyna-security-pipeline/api/_pipeline_status.json
+cyna-security-pipeline/api/_feed_status.json
+
+# ipsum — exclure les fichiers de niveaux (redondants avec ipsum.txt)
+ipsum/levels/
