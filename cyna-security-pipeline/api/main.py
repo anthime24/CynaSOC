@@ -109,12 +109,26 @@ def get_kpis(
 
     base_where = ("WHERE " + " AND ".join(base_conditions)) if base_conditions else ""
 
+    # Total all types: date-filtered only, no type restriction
+    date_conds = []
+    date_params = []
+    if from_date:
+        date_conds.append("timestamp >= %s")
+        date_params.append(from_date)
+    if to_date:
+        date_conds.append("timestamp <= %s")
+        date_params.append(to_date)
+    date_where = ("WHERE " + " AND ".join(date_conds)) if date_conds else ""
+
     # For malicious and unique IPs we need the join with enriched_logs
     join_where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute(f"SELECT COUNT(*) AS cnt FROM security_logs {date_where}", date_params)
+        total_all_types = cur.fetchone()["cnt"]
 
         cur.execute(f"SELECT COUNT(*) AS cnt FROM security_logs {base_where}", base_params)
         total_logs = cur.fetchone()["cnt"]
@@ -144,7 +158,7 @@ def get_kpis(
         cur.close()
         conn.close()
         return {
-            "total_logs": total_logs,
+            "total_logs": total_all_types,
             "malicious_logs": malicious_logs,
             "threat_rate": threat_rate,
             "unique_ips": unique_ips,

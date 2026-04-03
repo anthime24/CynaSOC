@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { Shield, AlertTriangle, Percent, Fingerprint, Monitor } from 'lucide-react'
 import { fetchApi, buildQueryString } from '../hooks/useApi.js'
 
-const CARD_STYLE = {
-  backgroundColor: '#0a0550',
-  border: '1px solid #1a0e7a',
+const cardStyle = (darkMode) => ({
+  backgroundColor: darkMode ? '#0a0550' : '#FFFFFF',
+  border: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
   borderRadius: '12px',
   padding: '20px 24px',
   display: 'flex',
   alignItems: 'center',
   gap: '16px',
   flex: 1,
-}
+})
 
 function getThreatColor(value, type) {
   if (type === 'rate') {
@@ -27,9 +27,9 @@ function getThreatColor(value, type) {
   return '#F8FAFC'
 }
 
-function KPICard({ icon: Icon, iconColor, value, label, valueColor, subValue }) {
+function KPICard({ icon: Icon, iconColor, value, label, valueColor, subValue, darkMode }) {
   return (
-    <div style={CARD_STYLE}>
+    <div style={cardStyle(darkMode)}>
       <div
         style={{
           width: '48px',
@@ -50,7 +50,7 @@ function KPICard({ icon: Icon, iconColor, value, label, valueColor, subValue }) 
           style={{
             fontSize: '28px',
             fontWeight: 800,
-            color: valueColor || '#F8FAFC',
+            color: valueColor || (darkMode ? '#F8FAFC' : '#1e1b4b'),
             lineHeight: 1.1,
             letterSpacing: '-0.02em',
           }}
@@ -70,7 +70,7 @@ function KPICard({ icon: Icon, iconColor, value, label, valueColor, subValue }) 
   )
 }
 
-export default function KPICards({ filters, refreshToken }) {
+export default function KPICards({ filters, refreshToken, darkMode }) {
   const [data, setData] = useState(null)
   const [endpointData, setEndpointData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -102,8 +102,7 @@ export default function KPICards({ filters, refreshToken }) {
           <div
             key={i}
             style={{
-              ...CARD_STYLE,
-              backgroundColor: '#0a0550',
+              ...cardStyle(darkMode),
               opacity: 0.5,
               minHeight: '88px',
               animation: 'pulse 1.5s ease-in-out infinite',
@@ -118,7 +117,7 @@ export default function KPICards({ filters, refreshToken }) {
     return (
       <div
         style={{
-          backgroundColor: '#0a0550',
+          backgroundColor: darkMode ? '#0a0550' : '#FFFFFF',
           border: '1px solid #EF4444',
           borderRadius: '12px',
           padding: '16px',
@@ -140,15 +139,14 @@ export default function KPICards({ filters, refreshToken }) {
   const epMalware = endpointData?.malware_detected ?? 0
   const epScans = endpointData?.scans_performed ?? 0
 
-  const gridCols = 'repeat(5, 1fr)'
-
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
       <KPICard
         icon={Shield}
         iconColor="#7C00FF"
         value={total.toLocaleString()}
-        label="Total logs"
+        label="Total logs (tous types)"
+        darkMode={darkMode}
       />
       <KPICard
         icon={AlertTriangle}
@@ -156,6 +154,7 @@ export default function KPICards({ filters, refreshToken }) {
         value={malicious.toLocaleString()}
         label="Logs malveillants"
         valueColor={getThreatColor(malicious, 'malicious')}
+        darkMode={darkMode}
       />
       <KPICard
         icon={Percent}
@@ -163,12 +162,14 @@ export default function KPICards({ filters, refreshToken }) {
         value={`${rate.toFixed(1)}%`}
         label="Taux de menace"
         valueColor={getThreatColor(rate, 'rate')}
+        darkMode={darkMode}
       />
       <KPICard
         icon={Fingerprint}
         iconColor="#3B82F6"
         value={unique.toLocaleString()}
         label="IPs malveillantes uniques"
+        darkMode={darkMode}
       />
       {showEndpointCard && (
         <KPICard
@@ -177,6 +178,7 @@ export default function KPICards({ filters, refreshToken }) {
           value={epTotal.toLocaleString()}
           label="Endpoint Events"
           subValue={`${epMalware.toLocaleString()} malwares | ${epScans.toLocaleString()} scans`}
+          darkMode={darkMode}
         />
       )}
     </div>

@@ -67,7 +67,7 @@ function ConfidenceBadge({ score }) {
   )
 }
 
-export default function CriticalAlerts({ filters, refreshToken }) {
+export default function CriticalAlerts({ filters, refreshToken, darkMode }) {
   const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -84,8 +84,8 @@ export default function CriticalAlerts({ filters, refreshToken }) {
   return (
     <div
       style={{
-        backgroundColor: '#0a0550',
-        border: '1px solid #1a0e7a',
+        backgroundColor: darkMode ? '#0a0550' : '#FFFFFF',
+        border: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
         borderLeft: '4px solid #EF4444',
         borderRadius: '12px',
         padding: '20px 24px',
@@ -101,7 +101,7 @@ export default function CriticalAlerts({ filters, refreshToken }) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <span style={{ fontSize: '15px' }}>⚠️</span>
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#F8FAFC' }}>
+        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: darkMode ? '#F8FAFC' : '#1e1b4b' }}>
           Alertes critiques
         </h2>
         <span

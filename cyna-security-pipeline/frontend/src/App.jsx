@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { Sun, Moon } from 'lucide-react'
 import KPICards from './components/KPICards.jsx'
 import Timeline from './components/Timeline.jsx'
 import TopIPs from './components/TopIPs.jsx'
@@ -8,6 +9,7 @@ import ActionBar from './components/ActionBar.jsx'
 import CriticalAlerts from './components/CriticalAlerts.jsx'
 
 export default function App() {
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') !== 'false')
   const [filters, setFilters] = useState({
     from_date: '',
     to_date: '',
@@ -16,6 +18,11 @@ export default function App() {
   })
 
   const [refreshToken, setRefreshToken] = useState(0)
+
+  useEffect(() => {
+    document.body.style.backgroundColor = darkMode ? '#040130' : '#F0EFED'
+    localStorage.setItem('darkMode', darkMode)
+  }, [darkMode])
 
   const triggerRefresh = useCallback(() => {
     setRefreshToken((t) => t + 1)
@@ -52,9 +59,22 @@ export default function App() {
     endpoint: '#10B981',
   }
 
+  const DM = darkMode
+  const textPrimary = DM ? '#F8FAFC' : '#1e1b4b'
+  const textSecondary = '#94A3B8'
+  const inputStyle = {
+    backgroundColor: DM ? '#040130' : '#FFFFFF',
+    border: `1px solid ${DM ? '#1a0e7a' : '#CBD5E1'}`,
+    color: DM ? '#F8FAFC' : '#1e1b4b',
+    borderRadius: '6px',
+    padding: '4px 8px',
+    fontSize: '12px',
+    outline: 'none',
+  }
+
   return (
-    <div style={{ backgroundColor: '#040130', minHeight: '100vh', color: '#F8FAFC' }}>
-      {/* Header */}
+    <div style={{ backgroundColor: DM ? '#040130' : '#F0EFED', minHeight: '100vh', color: textPrimary }}>
+      {/* Header — always dark for branding */}
       <header
         style={{
           background: 'linear-gradient(135deg, #040130 0%, #0a0550 100%)',
@@ -84,14 +104,32 @@ export default function App() {
             </p>
           </div>
         </div>
-        <ActionBar onRefresh={triggerRefresh} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={() => setDarkMode((d) => !d)}
+            title={DM ? 'Passer en mode clair' : 'Passer en mode sombre'}
+            style={{
+              backgroundColor: 'transparent',
+              border: '1px solid #1a0e7a',
+              borderRadius: '8px',
+              padding: '6px 8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#94A3B8',
+            }}
+          >
+            {DM ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <ActionBar onRefresh={triggerRefresh} />
+        </div>
       </header>
 
       {/* Filters Bar */}
       <div
         style={{
-          backgroundColor: '#0a0550',
-          borderBottom: '1px solid #1a0e7a',
+          backgroundColor: DM ? '#0a0550' : '#F8FAFC',
+          borderBottom: `1px solid ${DM ? '#1a0e7a' : '#E2E8F0'}`,
           padding: '12px 24px',
           display: 'flex',
           alignItems: 'center',
@@ -101,44 +139,28 @@ export default function App() {
       >
         {/* Date range */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '12px', color: '#94A3B8', whiteSpace: 'nowrap' }}>De</label>
+          <label style={{ fontSize: '12px', color: textSecondary, whiteSpace: 'nowrap' }}>De</label>
           <input
             type="datetime-local"
             value={filters.from_date}
             onChange={(e) => setFilters((prev) => ({ ...prev, from_date: e.target.value }))}
-            style={{
-              backgroundColor: '#040130',
-              border: '1px solid #1a0e7a',
-              color: '#F8FAFC',
-              borderRadius: '6px',
-              padding: '4px 8px',
-              fontSize: '12px',
-              outline: 'none',
-            }}
+            style={inputStyle}
           />
-          <label style={{ fontSize: '12px', color: '#94A3B8', whiteSpace: 'nowrap' }}>À</label>
+          <label style={{ fontSize: '12px', color: textSecondary, whiteSpace: 'nowrap' }}>À</label>
           <input
             type="datetime-local"
             value={filters.to_date}
             onChange={(e) => setFilters((prev) => ({ ...prev, to_date: e.target.value }))}
-            style={{
-              backgroundColor: '#040130',
-              border: '1px solid #1a0e7a',
-              color: '#F8FAFC',
-              borderRadius: '6px',
-              padding: '4px 8px',
-              fontSize: '12px',
-              outline: 'none',
-            }}
+            style={inputStyle}
           />
         </div>
 
         {/* Divider */}
-        <div style={{ width: '1px', height: '28px', backgroundColor: '#1a0e7a' }} />
+        <div style={{ width: '1px', height: '28px', backgroundColor: DM ? '#1a0e7a' : '#CBD5E1' }} />
 
         {/* Log type checkboxes */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '12px', color: '#94A3B8', marginRight: '8px' }}>Types</span>
+          <span style={{ fontSize: '12px', color: textSecondary, marginRight: '8px' }}>Types</span>
           {['ids', 'access'].map((type) => (
             <label
               key={type}
@@ -149,7 +171,7 @@ export default function App() {
                 cursor: 'pointer',
                 padding: '4px 10px',
                 borderRadius: '16px',
-                border: `1px solid ${filters.types.includes(type) ? typeColors[type] : '#1a0e7a'}`,
+                border: `1px solid ${filters.types.includes(type) ? typeColors[type] : (DM ? '#1a0e7a' : '#CBD5E1')}`,
                 backgroundColor: filters.types.includes(type) ? `${typeColors[type]}22` : 'transparent',
                 transition: 'all 0.15s',
               }}
@@ -168,11 +190,11 @@ export default function App() {
         </div>
 
         {/* Divider */}
-        <div style={{ width: '1px', height: '28px', backgroundColor: '#1a0e7a' }} />
+        <div style={{ width: '1px', height: '28px', backgroundColor: DM ? '#1a0e7a' : '#CBD5E1' }} />
 
         {/* Confidence slider */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#94A3B8', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '12px', color: textSecondary, whiteSpace: 'nowrap' }}>
             Score min
           </span>
           <input
@@ -204,8 +226,8 @@ export default function App() {
           style={{
             marginLeft: 'auto',
             backgroundColor: 'transparent',
-            border: '1px solid #1a0e7a',
-            color: '#94A3B8',
+            border: `1px solid ${DM ? '#1a0e7a' : '#CBD5E1'}`,
+            color: textSecondary,
             borderRadius: '6px',
             padding: '4px 12px',
             fontSize: '12px',
@@ -219,16 +241,16 @@ export default function App() {
       {/* Main content */}
       <main style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
         {/* Row 1: KPI cards */}
-        <KPICards filters={apiFilters} refreshToken={refreshToken} />
+        <KPICards filters={apiFilters} refreshToken={refreshToken} darkMode={DM} />
 
         {/* Alertes critiques live */}
         <div style={{ marginTop: '20px' }}>
-          <CriticalAlerts filters={apiFilters} refreshToken={refreshToken} />
+          <CriticalAlerts filters={apiFilters} refreshToken={refreshToken} darkMode={DM} />
         </div>
 
         {/* Row 2: Timeline */}
         <div style={{ marginTop: '24px' }}>
-          <Timeline filters={apiFilters} refreshToken={refreshToken} />
+          <Timeline filters={apiFilters} refreshToken={refreshToken} darkMode={DM} />
         </div>
 
         {/* Row 3: TopIPs + TypeSeverity */}
@@ -240,13 +262,13 @@ export default function App() {
             marginTop: '24px',
           }}
         >
-          <TopIPs filters={apiFilters} refreshToken={refreshToken} />
-          <TypeSeverityCharts filters={apiFilters} refreshToken={refreshToken} />
+          <TopIPs filters={apiFilters} refreshToken={refreshToken} darkMode={DM} />
+          <TypeSeverityCharts filters={apiFilters} refreshToken={refreshToken} darkMode={DM} />
         </div>
 
         {/* Row 4: Logs Table */}
         <div style={{ marginTop: '24px' }}>
-          <LogsTable filters={apiFilters} refreshToken={refreshToken} />
+          <LogsTable filters={apiFilters} refreshToken={refreshToken} darkMode={DM} />
         </div>
       </main>
     </div>

@@ -11,12 +11,12 @@ import {
 } from 'recharts'
 import { fetchApi, buildQueryString } from '../hooks/useApi.js'
 
-const CARD_STYLE = {
-  backgroundColor: '#0a0550',
-  border: '1px solid #1a0e7a',
+const cardStyle = (darkMode) => ({
+  backgroundColor: darkMode ? '#0a0550' : '#FFFFFF',
+  border: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
   borderRadius: '12px',
   padding: '20px 24px',
-}
+})
 
 function getConfidenceColor(score) {
   if (score >= 6) return '#EF4444'
@@ -123,9 +123,9 @@ export default function TopIPs({ filters, refreshToken, darkMode }) {
   const chartData = [...data].reverse()
 
   return (
-    <div style={CARD_STYLE}>
+    <div style={cardStyle(darkMode)}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#F8FAFC' }}>
+        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: darkMode ? '#F8FAFC' : '#1e1b4b' }}>
           Top 10 IPs malveillantes
         </h2>
         {loading && <span style={{ fontSize: '11px', color: '#94A3B8' }}>Chargement...</span>}
@@ -144,7 +144,7 @@ export default function TopIPs({ filters, refreshToken, darkMode }) {
             barSize={22}
             margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#1a0e7a" strokeOpacity={0.5} horizontal={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1a0e7a' : '#E2E8F0'} strokeOpacity={0.8} horizontal={false} />
             <XAxis
               type="number"
               tick={{ fontSize: 10, fill: darkMode ? '#94A3B8' : '#6B6B8A' }}

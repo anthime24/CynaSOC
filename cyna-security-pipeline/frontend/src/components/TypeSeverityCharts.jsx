@@ -15,12 +15,12 @@ import {
 } from 'recharts'
 import { fetchApi, buildQueryString } from '../hooks/useApi.js'
 
-const CARD_STYLE = {
-  backgroundColor: '#0a0550',
-  border: '1px solid #1a0e7a',
+const cardStyle = (darkMode) => ({
+  backgroundColor: darkMode ? '#0a0550' : '#FFFFFF',
+  border: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
   borderRadius: '12px',
   padding: '20px 24px',
-}
+})
 
 const TYPE_COLORS = {
   ids: '#3B82F6',
@@ -133,9 +133,9 @@ export default function TypeSeverityCharts({ filters, refreshToken, darkMode }) 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Pie chart */}
-      <div style={CARD_STYLE}>
+      <div style={cardStyle(darkMode)}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#F8FAFC' }}>
+          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: darkMode ? '#F8FAFC' : '#1e1b4b' }}>
             Répartition par type
           </h2>
           {loading && <span style={{ fontSize: '11px', color: '#94A3B8' }}>Chargement...</span>}
@@ -184,7 +184,7 @@ export default function TypeSeverityCharts({ filters, refreshToken, darkMode }) 
                   }}
                 />
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#F8FAFC' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: darkMode ? '#F8FAFC' : '#1e1b4b' }}>
                     {item.name.toUpperCase()}
                   </div>
                   <div style={{ fontSize: '11px', color: '#94A3B8' }}>
@@ -198,8 +198,8 @@ export default function TypeSeverityCharts({ filters, refreshToken, darkMode }) 
       </div>
 
       {/* Stacked bar chart */}
-      <div style={CARD_STYLE}>
-        <h2 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: '#F8FAFC' }}>
+      <div style={cardStyle(darkMode)}>
+        <h2 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: darkMode ? '#F8FAFC' : '#1e1b4b' }}>
           Sévérité par type
         </h2>
 
@@ -210,7 +210,7 @@ export default function TypeSeverityCharts({ filters, refreshToken, darkMode }) 
         ) : (
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={barData.rows} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a0e7a" strokeOpacity={0.5} vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1a0e7a' : '#E2E8F0'} strokeOpacity={0.8} vertical={false} />
               <XAxis
                 dataKey="name"
                 tick={{ fontSize: 11, fill: darkMode ? '#94A3B8' : '#6B6B8A' }}

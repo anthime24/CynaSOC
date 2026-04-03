@@ -6,56 +6,13 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-Pipeline de cybersécurité complet : ingestion de logs simulés, enrichissement par threat intelligence (ipsum), et dashboard SOC interactif — le tout en une seule commande Docker.
+Pipeline de cybersécurité complet : ingestion de logs simulés, enrichissement par threat intelligence, et dashboard SOC interactif — le tout en une seule commande Docker.
+
+> Les dossiers `ipsum/` et `Security-Log-Generator/` sont des copies locales des repos originaux ([ipsum](https://github.com/stamparm/ipsum), [Security-Log-Generator](https://github.com/cruikshank25/Security-Log-Generator)), inclus directement dans le repo pour simplifier le déploiement.
 
 ---
 
-## Architecture
-
-```
-Security-Log-Generator (ids / access / endpoint)
-              │
-              │  subprocess × 3 types
-              ▼
-        ingest_logs.py
-              │  INSERT batch (execute_batch, page_size=500)
-              ▼
-       security_logs (PostgreSQL)
-              │
-              │                    ipsum GitHub Feed (~129 212 IPs)
-              │                              │
-              │                     ingest_ipsum.py
-              │                    UPSERT batch → malicious_ips
-              │                              │
-              └──────────┬───────────────────┘
-                         │
-                     enrich.py
-              (JOIN source_ip / dest_ip ↔ malicious_ips)
-                         │
-                         ▼
-                   enriched_logs (PostgreSQL)
-                         │
-                         ▼
-              FastAPI — port 8000 (/api/*)
-                         │
-                         ▼
-           React Dashboard — port 3000
-```
-
----
-
-## Stack technique
-
-| Composant | Technologie | Rôle | Justification |
-|-----------|-------------|------|---------------|
-| Base de données | PostgreSQL 15 | Stockage, jointures, index | Requêtes SQL complexes avec `INET`, `JSONB`, `DISTINCT` ; robuste et léger |
-| Pipeline | Python 3.11 | Ingestion, parsing, enrichissement | Contrôle fin, batch inserts natifs avec psycopg2 |
-| API | FastAPI | Endpoints JSON pour le dashboard | Async, auto-doc Swagger, gestion d'erreurs propre |
-| Dashboard | React 18 + Recharts | Visualisation interactive | Composants autonomes, rafraîchissement indépendant par panel |
-| Build frontend | Vite + Nginx | Bundling + serving statique | Image finale légère, build rapide |
-| Orchestration | Docker Compose | Lance tout en une commande | Reproductibilité totale, healthcheck sur la base |
-| Logs simulés | Security-Log-Generator | Génère des logs IDS/Access/Endpoint réalistes | Source externe (cruikshank25), modifiée pour injecter des IPs ipsum |
-| Threat intel | ipsum (stamparm) | ~129 000 IPs malveillantes agrégées | Domaine public, mise à jour quotidienne, format simple |
+# PARTIE 1 — Installation et utilisation
 
 ---
 
@@ -88,149 +45,251 @@ Une fois les containers démarrés, cliquer sur **Run Pipeline** dans le dashboa
 
 ---
 
-## Ce que fait le pipeline — 4 étapes
+## Le Dashboard — ce qu'il affiche et comment l'utiliser
 
-### Etape 0 — Génération des logs
+### Filtres globaux
 
-Le service `pipeline` lance `Security-Log-Generator` trois fois via subprocess, en modifiant `config.yaml` à la volée pour chaque type :
+En haut du dashboard, une barre de filtres permet d'affiner tous les panels en même temps :
+- **Plage de dates** : restreint les données à une période précise
+- **Type de log** : IDS, Access (Endpoint est exclu des panels liés à l'enrichissement — j'explique pourquoi dans la Partie 2)
+- **Score de confiance minimum** : filtre les IPs par leur score ipsum (1 = suspecte, 8 = très dangereuse)
 
-| Type | Fichier | Volume | Champs clés |
-|------|---------|--------|-------------|
-| `ids` | `ids.log` | ~500 événements | timestamp, source_ip, dest_ip, protocol, severity, alert_type |
-| `access` | `access.log` | ~500 événements | timestamp, client_ip, method, url, status_code, user_agent |
-| `endpoint` | `endpoint.log` | ~500 événements | timestamp, host_ip, event_type, process, severity |
-
-**Injection d'IPs malveillantes :** environ 20 % des IPs générées dans les logs `ids` et `access` sont remplacées par des IPs réelles extraites du feed ipsum (score >= 4). C'est la condition nécessaire pour que l'enrichissement produise des résultats (voir section "Défis rencontrés").
-
-### Etape 1 — Ingestion des logs (`ingest_logs.py`)
-
-- Trois parseurs distincts selon le format de chaque type de log
-- Le format `endpoint` est multi-lignes (blocs `Date:`) — parsé différemment des deux autres
-- Insertion en batch via `execute_batch` (page_size=500)
-- Résultat : ~1 500 lignes dans `security_logs` (500 × 3 types)
-
-### Etape 2 — Ingestion ipsum (`ingest_ipsum.py`)
-
-- Lecture du fichier `ipsum/ipsum.txt` (monté en lecture seule dans le container)
-- Parsing des lignes `IP\tscore`, commentaires ignorés
-- `INSERT ... ON CONFLICT DO UPDATE` pour permettre les mises à jour incrémentales
-- **129 212 IPs** insérées dans `malicious_ips`
-
-### Etape 3 — Enrichissement (`enrich.py`)
-
-- Jointure SQL entre `security_logs` et `malicious_ips` sur `source_ip` OU `dest_ip`
-- Un même log peut générer deux entrées dans `enriched_logs` (match sur source ET destination)
-- `is_malicious = TRUE` positionné sur chaque correspondance
-- Les KPIs et graphiques utilisent `COUNT(DISTINCT sl.id)` pour éviter le double-comptage
-
----
-
-## Dashboard SOC — 6 panels
-
-### Filtres globaux (sidebar)
-
-| Filtre | Type | Détail |
-|--------|------|--------|
-| Plage de dates | Date pickers | Appliqué à tous les panels |
-| Type de log | Cases à cocher | IDS / Access (Endpoint exclu — pas d'IP à corréler) |
-| Score de confiance minimum | Slider 1-10 | Filtre les IPs ipsum par score |
-
-Auto-refresh toutes les 30 secondes. Dark / Light mode avec persistance `localStorage`.
-
----
+Le dashboard se rafraîchit automatiquement toutes les 30 secondes. Un toggle Dark/Light mode est disponible en haut à droite.
 
 ### Panel 1 — KPI Cards
 
-5 métriques instantanées :
+5 métriques visibles d'un coup d'œil :
 
-| Métrique | Source |
-|----------|--------|
-| Total logs | `COUNT(*) FROM security_logs` |
-| Logs malveillants | `COUNT(DISTINCT sl.id)` avec JOIN enriched_logs |
-| Taux de menace (%) | malveillants / total × 100 |
-| IPs malveillantes uniques | `COUNT(DISTINCT matched_ip)` |
-| Endpoint Events | Total / malware détectés / scans (filtre séparé) |
+| Métrique | Ce que ça veut dire |
+|----------|-------------------|
+| Total logs | Nombre total de logs ingérés (IDS + Access + Endpoint) |
+| Logs malveillants | Nombre de logs dont une IP correspond à la blacklist ipsum |
+| Taux de menace | Pourcentage de logs malveillants parmi les logs IDS + Access uniquement |
+| IPs malveillantes uniques | Combien d'IPs différentes de la blacklist ont été détectées |
+| Endpoint Events | Nombre d'événements endpoint avec le détail malwares/scans |
 
-### Panel 2 — Alertes critiques (live)
+Le taux de menace change de couleur : vert si < 5%, orange entre 5-10%, rouge au-delà de 10%.
 
-Encart mis à jour en temps réel. Affiche les 5 derniers logs dont le score de confiance ipsum est **>= 6**, avec :
-- Point rouge clignotant
-- Temps relatif ("il y a 3 min")
-- IP malveillante en monospace rouge
-- Badge type (IDS / Access) et score de confiance
+### Panel 2 — Alertes critiques
 
-Si aucune alerte : message "Système sain" en vert.
+Un encart qui affiche les 5 derniers logs avec un score de confiance **≥ 6**. Chaque alerte montre le temps écoulé ("il y a 3 min"), l'IP en rouge, le type (IDS/Access), le score, et le type d'événement. Un point rouge clignote pour attirer l'attention. Si aucune alerte critique n'est détectée, le panneau affiche "Système sain" en vert.
 
-### Panel 3 — Timeline Area Chart
+### Panel 3 — Timeline
 
-Graphique de surface double, groupé par heure :
-- Zone grise : tous les événements (IDS + Access)
-- Zone rouge : événements malveillants uniquement
-
-Visualise les pics d'activité et la proportion de trafic suspect au fil du temps.
+Un graphique à double surface groupé par heure. La zone grise représente tous les événements, la zone rouge les événements malveillants. Un pic rouge visible indique une vague d'attaques. C'est le panel le plus utile pour repérer les anomalies temporelles.
 
 ### Panel 4 — Top 10 IPs malveillantes
 
-Bar chart horizontal trié par nombre de hits. Pour chaque IP : hits (`COUNT(DISTINCT sl.id)`), score de confiance maximum, première et dernière occurrence.
+Un graphique à barres horizontal montrant les 10 IPs les plus actives dans les logs enrichis, triées par nombre de détections. Chaque barre a un badge coloré selon le score de confiance (rouge ≥ 6, orange 3-5, jaune 1-2).
 
 ### Panel 5 — Répartition types et sévérités
 
-- **Donut** : répartition IDS / Access / Endpoint
-- **Bar chart empilé** : sévérités par type (Access exclu — les codes HTTP ne constituent pas un niveau de menace pertinent ; filtré côté frontend)
+Deux graphiques : un donut pour la répartition IDS/Access/Endpoint, et un bar chart empilé pour la sévérité par type de log.
 
 ### Panel 6 — Tableau des logs malveillants
 
-- Onglets Tous / IDS / Access
-- Pagination serveur : 20 lignes par page via `LIMIT/OFFSET`
-- Filtres dropdown type et sévérité
-- **Export CSV** : téléchargement via `StreamingResponse` FastAPI, limité à 50 000 lignes
+Un tableau paginé (20 lignes par page) avec des onglets "Tous / IDS / Access" pour filtrer rapidement. Les colonnes sont triables, et un bouton **Export CSV** permet de télécharger les données filtrées.
 
----
+### Boutons d'action
 
-## Boutons d'action
-
-| Bouton | Action |
-|--------|--------|
-| **Run Pipeline** | Génère les logs, ingère, enrichit — suivi de progression par polling toutes les 5s |
-| **Update Feed** | Télécharge la dernière version d'ipsum depuis GitHub et met à jour `malicious_ips` |
+| Bouton | Ce qu'il fait |
+|--------|--------------|
+| **Run Pipeline** | Vide les tables, régénère les logs, ingère, enrichit — suivi par polling toutes les 5s |
+| **Update Feed** | Télécharge la dernière version d'ipsum depuis GitHub et met à jour la blacklist |
 | **Refresh Data** | Force le re-fetch de tous les panels sans relancer le pipeline |
-| **Reset** | Modal de confirmation → `TRUNCATE` des 3 tables + relance automatique du pipeline |
+| **Reset** | Modal de confirmation → vide tout et relance le pipeline |
 
 ---
 
-## Schéma PostgreSQL
+## Variables d'environnement
 
-### Table `security_logs`
+Copier `.env.example` en `.env` avant le premier lancement :
 
-```sql
-id          SERIAL PRIMARY KEY
-timestamp   TIMESTAMPTZ NOT NULL
-log_type    VARCHAR(50)          -- 'ids', 'access', 'endpoint'
-source_ip   INET
-dest_ip     INET
-severity    VARCHAR(20)
-event_type  VARCHAR(100)
-raw_log     JSONB                -- log brut complet
-created_at  TIMESTAMPTZ DEFAULT NOW()
+```bash
+cp .env.example .env
 ```
 
-### Table `malicious_ips`
+| Variable | Valeur par défaut | Rôle |
+|----------|------------------|------|
+| `POSTGRES_DB` | `cyna` | Nom de la base |
+| `POSTGRES_USER` | `cyna` | Utilisateur PostgreSQL |
+| `POSTGRES_PASSWORD` | `cyna_password` | Mot de passe (à changer en prod) |
+| `DATABASE_URL` | auto-construit | URL de connexion psycopg2 |
+| `IPSUM_PATH` | `/app/ipsum/ipsum.txt` | Chemin vers le feed ipsum |
+| `LOG_DIR` | `/app/logs` | Répertoire des fichiers .log générés |
+| `GENERATOR_DIR` | `/app/generator` | Répertoire Security-Log-Generator |
 
-```sql
-ip               INET PRIMARY KEY
-confidence_level INTEGER NOT NULL   -- score ipsum 1-10
-last_updated     TIMESTAMPTZ DEFAULT NOW()
+---
+
+## Commandes utiles
+
+```bash
+# Lancer tout le projet
+docker-compose up --build
+
+# Voir les logs du pipeline
+docker-compose logs pipeline
+docker-compose logs api
+
+# Se connecter à PostgreSQL
+docker exec -it cyna-db psql -U cyna -d cyna
+
+# Vérifier les données en base
+docker exec -it cyna-db psql -U cyna -d cyna -c "SELECT COUNT(*) FROM security_logs;"
+docker exec -it cyna-db psql -U cyna -d cyna -c "SELECT COUNT(*) FROM malicious_ips;"
+docker exec -it cyna-db psql -U cyna -d cyna -c "SELECT COUNT(*) FROM enriched_logs WHERE is_malicious = TRUE;"
+
+# Reset complet (supprime les volumes)
+docker-compose down -v
+docker-compose up --build
+
+# Monitorer la consommation RAM
+docker stats --no-stream
 ```
 
-### Table `enriched_logs`
+---
+
+# PARTIE 2 — Ce que j'ai compris et construit
+
+---
+
+## Contexte du projet
+
+Cyna est une entreprise de cybersécurité qui protège les PME contre les cyberattaques. Le but de ce test technique était de construire un pipeline de données capable d'ingérer des logs de sécurité, de les croiser avec une base de threat intelligence, et de produire des dashboards exploitables pour une équipe SOC (Security Operations Center — le centre de surveillance cyber d'une entreprise).
+
+---
+
+## Les deux sources de données
+
+### Le Security-Log-Generator — les "caméras de surveillance" du réseau
+
+Ce repo simule ce que produisent les outils de sécurité d'une entreprise. J'ai travaillé avec trois types de logs, chacun surveillant un aspect différent du réseau :
+
+**Les logs IDS (Intrusion Detection System)** surveillent le trafic réseau entre machines. Le système analyse les connexions et déclenche des alertes quand il détecte un comportement suspect. Chaque log contient une IP source (l'attaquant potentiel), une IP destination (la cible), le protocole utilisé, un niveau de sévérité, et le type d'alerte ("Port scanning", "SQL injection", "Worm Propagation Attempt"…). C'est comme un vigile qui surveille les entrées d'un immeuble et signale tout comportement anormal.
+
+**Les logs Access** enregistrent toutes les requêtes HTTP vers les serveurs web de l'entreprise. Chaque visite est loggée avec l'IP du visiteur, la page demandée, la méthode HTTP (GET, POST…), le code de réponse (200 = OK, 403 = interdit, 404 = pas trouvé) et le navigateur utilisé. C'est comme le cahier du vigile à l'accueil : il note qui entre, ce qu'il demande, et ce qu'on lui répond. En cybersécurité, c'est utile pour repérer des attaques par force brute (même IP qui tente /admin/login 500 fois) ou de la reconnaissance (scan de toutes les URLs).
+
+**Les logs Endpoint** viennent des postes de travail individuels. Ils enregistrent l'activité de l'antivirus sur chaque machine : scans effectués, malwares détectés, exceptions configurées, mises à jour. Il n'y a pas d'IP car ce n'est pas une histoire de réseau — c'est ce qui se passe à l'intérieur d'une machine, pas entre deux machines. C'est comme un gardien personnel installé dans chaque bureau de l'immeuble.
+
+**La différence clé :** Access = qui frappe à la porte du site web depuis l'extérieur. Endpoint = ce qui se passe sur chaque ordinateur à l'intérieur. IDS = qui communique avec qui sur le réseau. Les trois sont complémentaires : un hacker peut d'abord apparaître dans les logs access (il tente de rentrer), puis dans les logs IDS (il scanne le réseau), puis dans les logs endpoint (il lance un malware sur un poste).
+
+### Le feed ipsum — la "liste noire" des criminels connus
+
+En cybersécurité, des organisations collectent et partagent des listes d'adresses IP connues pour être malveillantes (serveurs de hackers, machines piratées, centres de commande de botnets). Le repo ipsum agrège plus de 30 de ces blacklists en un seul fichier, mis à jour quotidiennement.
+
+Chaque IP a un **score de confiance** (1 à 8) : plus le chiffre est élevé, plus l'IP apparaît dans de nombreuses listes différentes, donc plus on est certain qu'elle est dangereuse. Une IP à score 2 est suspecte, une IP à score 8 est quasiment certainement un serveur d'attaquant.
+
+Le fichier contient environ **129 212 IPs** et est téléchargeable gratuitement (domaine public).
+
+---
+
+## Architecture technique
+
+```
+Security-Log-Generator (ids / access / endpoint)
+              │
+              │  subprocess × 3 types
+              ▼
+        ingest_logs.py
+              │  INSERT batch (execute_batch, page_size=500)
+              ▼
+       security_logs (PostgreSQL)
+              │
+              │                    ipsum GitHub Feed (~129 212 IPs)
+              │                              │
+              │                     ingest_ipsum.py
+              │                    UPSERT batch → malicious_ips
+              │                              │
+              └──────────┬───────────────────┘
+                         │
+                     enrich.py
+              (JOIN source_ip / dest_ip ↔ malicious_ips)
+                         │
+                         ▼
+                   enriched_logs (PostgreSQL)
+                         │
+                         ▼
+              FastAPI — port 8000 (/api/*)
+                         │
+                         ▼
+           React Dashboard — port 3000
+```
+
+### Pourquoi cette stack ?
+
+| Choix | Justification |
+|-------|---------------|
+| **PostgreSQL** | J'avais besoin de jointures SQL performantes entre les logs et la blacklist. PostgreSQL supporte nativement le type `INET` pour les adresses IP et `JSONB` pour stocker les logs bruts dans leur format original. C'est robuste et léger — adapté à la contrainte de 8 Go RAM. |
+| **Python** | Cohérent avec le générateur de logs (Python), permet un contrôle fin du parsing et des insertions batch. |
+| **FastAPI** | API REST rapide avec documentation Swagger auto-générée. Chaque panel du dashboard a son propre endpoint, ce qui rend l'architecture modulaire. |
+| **React + Recharts** | Dashboard custom plus professionnel qu'un Streamlit basique. Composants autonomes, chacun gère ses propres appels API. |
+| **Docker Compose** | Tout tourne en une commande, reproductible sur n'importe quelle machine. |
+
+---
+
+## Le pipeline — comment ça fonctionne étape par étape
+
+### Étape 0 — Génération des logs
+
+Le pipeline lance le Security-Log-Generator trois fois (une fois par type de log), en modifiant `config.yaml` à la volée. Chaque run produit ~500 événements.
+
+**Modification clé du générateur :** j'ai créé un module `ipsum_loader.py` qui charge les IPs malveillantes d'ipsum en mémoire. Dans les générateurs IDS et access, 20% des IPs sont piochées depuis cette liste au lieu d'être générées aléatoirement par Faker. J'explique pourquoi dans la section "Défis rencontrés".
+
+### Étape 1 — Ingestion des logs
+
+Trois parseurs distincts lisent les fichiers `.log` car chaque type a un format différent :
+- IDS et access : une ligne par événement, parsable directement
+- Endpoint : format multi-lignes (blocs commençant par `Date:`), nécessite un parsing spécial
+
+Chaque log est inséré dans la table `security_logs` avec ses champs clés extraits (timestamp, IPs, sévérité, type d'événement) et le log brut complet en JSONB.
+
+### Étape 2 — Ingestion ipsum
+
+Le script télécharge (ou lit localement) le fichier `ipsum.txt`, parse chaque ligne `IP\tscore`, et fait un UPSERT dans `malicious_ips`. L'UPSERT (`ON CONFLICT DO UPDATE`) permet de mettre à jour les scores si le feed est rechargé.
+
+### Étape 3 — Enrichissement
+
+C'est le cœur du projet. Le script effectue une jointure SQL entre `security_logs` et `malicious_ips` :
 
 ```sql
-id               SERIAL PRIMARY KEY
-log_id           INTEGER REFERENCES security_logs(id)
-matched_ip       INET
-confidence_level INTEGER
-is_malicious     BOOLEAN DEFAULT FALSE
-enriched_at      TIMESTAMPTZ DEFAULT NOW()
+SELECT sl.id, m.ip, m.confidence_level
+FROM security_logs sl
+JOIN malicious_ips m
+    ON sl.source_ip = m.ip OR sl.dest_ip = m.ip
+```
+
+Pour chaque log dont l'IP source OU destination apparaît dans la blacklist, une entrée est créée dans `enriched_logs` avec le flag `is_malicious = TRUE` et le score de confiance.
+
+Cela détecte deux scénarios : soit une IP malveillante nous attaque (elle est en source_ip), soit une machine de notre réseau communique avec une IP malveillante (elle est en dest_ip). Les deux sont des signaux d'alerte.
+
+Les logs endpoint ne participent pas à l'enrichissement puisqu'ils n'ont pas d'IP — c'est logique car ils surveillent l'activité locale d'une machine, pas le réseau.
+
+---
+
+## Le schéma de base de données
+
+### Pourquoi une seule table pour trois types de logs ?
+
+J'ai fait le choix de stocker les trois types (IDS, access, endpoint) dans une même table `security_logs`. Les colonnes communes (`timestamp`, `source_ip`, `dest_ip`, `severity`, `event_type`) servent aux jointures et aux filtres. Les champs spécifiques à chaque type sont conservés dans la colonne `raw_log` (JSONB).
+
+Ça veut dire que pour les logs endpoint, `source_ip`, `dest_ip` et `severity` sont à NULL — c'est normal et attendu. Le JSONB permet de requêter les champs spécifiques quand on en a besoin :
+
+```sql
+-- Récupérer le protocole des logs IDS
+SELECT raw_log->>'protocol', raw_log->>'flag' FROM security_logs WHERE log_type = 'ids';
+
+-- Récupérer les malwares détectés sur les endpoints
+SELECT raw_log->>'computer', raw_log->>'malware_found' FROM security_logs WHERE log_type = 'endpoint';
+```
+
+C'est un pattern classique en data engineering pour gérer des données hétérogènes dans une même table : colonnes communes pour les opérations fréquentes, JSONB pour le détail.
+
+### Tables
+
+```sql
+security_logs   -- logs bruts de tous types (colonnes communes + raw_log JSONB)
+malicious_ips   -- IPs du feed ipsum (~129 212 entrées, score 1-8)
+enriched_logs   -- résultat du croisement (log_id + matched_ip + score)
 ```
 
 ### Index
@@ -242,6 +301,80 @@ CREATE INDEX idx_logs_timestamp  ON security_logs(timestamp);
 CREATE INDEX idx_logs_type       ON security_logs(log_type);
 CREATE INDEX idx_malicious_ip    ON malicious_ips(ip);
 ```
+
+Les index sur `source_ip` et `dest_ip` sont essentiels — sans eux, la jointure d'enrichissement sur 129 000 IPs serait très lente.
+
+---
+
+## Sévérité vs Score de confiance — deux mesures différentes
+
+Un point important que j'ai compris en construisant ce projet : la **sévérité IDS** et le **score ipsum** mesurent des choses complètement différentes.
+
+La **sévérité** (low, medium, high) est attribuée par le capteur IDS au moment de la détection. Elle décrit la gravité de l'action : un port scanning est "low", une tentative de SQL injection est "high". Elle répond à la question "ce qui se passe, c'est grave ?".
+
+Le **score de confiance** (1 à 8) est calculé par ipsum en comptant dans combien de blacklists une IP apparaît. Il décrit la réputation de l'attaquant : score 2 = suspect, score 8 = attaquant confirmé par 8 sources. Il répond à la question "cette IP, on est sûr qu'elle est malveillante ?".
+
+L'intérêt de croiser les deux dans le dashboard :
+
+| Sévérité | Score ipsum | Interprétation |
+|----------|------------|----------------|
+| High | ≥ 6 | Attaque grave par un attaquant connu → **alerte maximale** |
+| High | 1-2 | Attaque grave mais IP peu connue → possible nouvel attaquant |
+| Low | ≥ 6 | Action banale par un attaquant très connu → reconnaissance avant une vraie attaque |
+| Low | 1-2 | Action banale, IP peu connue → probablement du bruit |
+
+C'est exactement ce que le panneau "Alertes critiques" exploite en filtrant sur `confidence_level >= 6`.
+
+---
+
+## Pourquoi les logs Endpoint ne sont pas dans les graphiques d'enrichissement
+
+Les logs endpoint n'ont aucune IP (ni source, ni destination). Ils enregistrent l'activité locale d'un poste de travail (scans antivirus, malwares détectés, exceptions), pas des connexions réseau. La jointure avec ipsum ne peut donc jamais les matcher.
+
+Dans le dashboard, je les ai traités séparément avec une KPI card dédiée ("Endpoint Events") qui affiche le nombre de malwares détectés et de scans effectués. C'est un complément utile pour un analyste SOC, mais c'est indépendant de l'enrichissement par threat intelligence.
+
+Pour les panels liés à l'enrichissement (timeline, top IPs, alertes critiques, tableau des logs), seuls les logs IDS et access sont pertinents. Le taux de menace est calculé uniquement sur la base IDS + access pour ne pas être artificiellement dilué par les logs endpoint qui ne peuvent jamais être "malveillants".
+
+---
+
+## Défis rencontrés
+
+### 1. IPs Faker vs IPs réelles ipsum — 0 correspondance initiale
+
+**Le problème :** quand j'ai lancé l'enrichissement pour la première fois, j'ai obtenu 0 correspondance. C'est logique : le Security-Log-Generator utilise Faker pour générer des IPs aléatoires (ex: `61.72.88.110`), qui n'ont aucune chance de correspondre aux vraies IPs malveillantes d'ipsum (ex: `185.220.101.34`). C'est comme chercher un numéro de téléphone inventé dans un vrai annuaire.
+
+**Les options envisagées :**
+- **Option A** — Injecter des IPs ipsum directement dans la table `security_logs` après coup. Rapide mais artificiel.
+- **Option B** — Modifier le générateur pour qu'il utilise de vraies IPs ipsum. Plus réaliste de bout en bout.
+- **Option C** — Créer une fausse blacklist correspondant aux plages Faker. Perd l'intérêt du feed réel.
+
+**Solution retenue (Option B) :** j'ai créé un module `ipsum_loader.py` qui charge les IPs malveillantes en mémoire au démarrage du générateur. Dans les générateurs IDS et access, 20% des IPs sont piochées depuis cette liste (score ≥ 4), le reste est toujours généré par Faker. Résultat : environ 25% des logs IDS/access matchent lors de l'enrichissement, ce qui donne des données réalistes pour le dashboard.
+
+Les logs endpoint n'ont pas été modifiés car ils ne contiennent pas d'IP.
+
+### 2. Surestimation des métriques — la courbe rouge qui dépasse le total
+
+**Le problème :** sur la timeline, la courbe des événements malveillants dépassait parfois la courbe du total. En investiguant avec des requêtes SQL, j'ai découvert que certains logs avaient jusqu'à 6 entrées dans `enriched_logs` (match sur source_ip ET dest_ip, multiplié par les runs successifs). Un `COUNT(*)` avec JOIN comptait chaque log plusieurs fois.
+
+**Vérification :**
+```sql
+SELECT log_id, COUNT(*) as nb FROM enriched_logs GROUP BY log_id HAVING COUNT(*) > 1;
+-- Résultat : certains log_id avec 2, 3, 4, voire 6 entrées
+```
+
+**Solution :** remplacement de `COUNT(*)` par `COUNT(DISTINCT sl.id)` sur tous les endpoints qui joignent avec `enriched_logs` (KPIs, timeline, top IPs, type/severity, pagination). Le double-comptage a disparu.
+
+### 3. Accumulation des données entre les runs
+
+**Le problème :** chaque clic sur "Run Pipeline" ajoutait de nouveaux logs sans vider les anciens. Le total gonflait à chaque run (40 800 → 48 900 → 53 280…), et les timestamps s'étalaient sur des années si les premiers tests dataient de 2023.
+
+**Solution :** ajout d'un `TRUNCATE enriched_logs, security_logs RESTART IDENTITY CASCADE` au début de chaque run. Le pipeline repart de zéro à chaque exécution. En production, les logs seraient accumulés avec une politique de rétention, mais pour la démo c'est plus clair et prévisible.
+
+### 4. Port PostgreSQL déjà occupé
+
+**Le problème :** un PostgreSQL local sur le port 5432 empêchait le container de s'exposer.
+
+**Solution :** PostgreSQL exposé sur `5433` en local (`5433:5432` dans `docker-compose.yml`). Internalement, les containers communiquent toujours sur le port `5432` standard via le réseau Docker.
 
 ---
 
@@ -287,117 +420,33 @@ cyna-security-pipeline/
 │   │   │   ├── LogsTable.jsx
 │   │   │   ├── ActionBar.jsx
 │   │   │   └── FeedStats.jsx
-│   │   └── hooks/              # Hooks React custom (fetch, refresh)
+│   │   └── hooks/
 │   └── package.json
 │
 ├── scripts/
 │   └── run_pipeline.sh         # Orchestrateur bash (étapes 0 à 3)
 │
+├── Security-Log-Generator/     # Copie locale (modifiée pour injecter des IPs ipsum)
+├── ipsum/                      # Copie locale du feed de threat intelligence
 ├── logs/                       # Fichiers .log générés (ignorés par git)
 │
 └── docs/
-    ├── progression.md          # Historique de développement
+    ├── progression.md
     └── dashboard_fonctionnement.md
 ```
 
 ---
 
-## Commandes utiles
-
-```bash
-# Lancer tout le projet
-docker-compose up --build
-
-# Voir les logs du pipeline
-docker-compose logs pipeline
-docker-compose logs api
-
-# Se connecter à PostgreSQL
-docker exec -it cyna-db psql -U cyna -d cyna
-
-# Vérifier les données en base
-docker exec -it cyna-db psql -U cyna -d cyna -c "SELECT COUNT(*) FROM security_logs;"
-docker exec -it cyna-db psql -U cyna -d cyna -c "SELECT COUNT(*) FROM malicious_ips;"
-docker exec -it cyna-db psql -U cyna -d cyna -c "SELECT COUNT(*) FROM enriched_logs WHERE is_malicious = TRUE;"
-
-# Reset complet (supprime les volumes)
-docker-compose down -v
-docker-compose up --build
-
-# Monitorer la consommation RAM
-docker stats --no-stream
-```
-
----
-
-## Défis rencontrés
-
-### 1. IPs Faker vs IPs réelles ipsum — 0 correspondance initiale
-
-**Problème :** Security-Log-Generator utilise la librairie Faker pour générer des IPs aléatoires. Ces IPs fictives n'ont aucune chance de correspondre aux 129 212 IPs réelles du feed ipsum. La jointure produisait systématiquement 0 résultat.
-
-```
-security_logs.source_ip  →  ex: 61.72.88.110   (générée par Faker)
-malicious_ips.ip         →  ex: 185.220.101.34 (vraie IP recensée)
-```
-
-**Solution retenue :** modification du générateur pour injecter ~20 % d'IPs réelles extraites de `malicious_ips` (score >= 4) dans les logs `ids` et `access`. Cette manipulation est intentionnelle et documentée — c'est un compromis inhérent à tout projet qui croise des données simulées avec une threat intelligence réelle.
-
----
-
-### 2. Port 5432 déjà occupé en local
-
-**Problème :** un PostgreSQL local tournant sur le port 5432 empêchait le container de s'exposer sur ce port.
-
-**Solution :** PostgreSQL exposé sur `5433` en local (`5433:5432` dans `docker-compose.yml`). Internalement, les containers communiquent toujours sur le port `5432` standard via le réseau Docker.
-
----
-
-### 3. Surestimation des métriques avec `COUNT(*)`
-
-**Problème :** un même log peut matcher deux IPs malveillantes (source_ip ET dest_ip présentes dans ipsum), créant deux lignes dans `enriched_logs` pour le même `log_id`. Un `COUNT(*)` naif avec JOIN donnait des chiffres gonflés, et la courbe "malveillants" pouvait dépasser le "total" sur la timeline.
-
-**Solution :** `COUNT(DISTINCT sl.id)` systématique sur tous les endpoints qui joignent `enriched_logs` :
-
-| Endpoint | Fix |
-|----------|-----|
-| `/api/kpis` | `COUNT(DISTINCT sl.id)` |
-| `/api/timeline` | `COUNT(DISTINCT sl.id)` par heure |
-| `/api/top-ips` | `COUNT(DISTINCT sl.id)` par IP |
-| `/api/type-severity` | `COUNT(DISTINCT sl.id)` |
-| `/api/logs` (pagination) | `COUNT(DISTINCT sl.id)` pour le total |
-
----
-
 ## Améliorations possibles
 
-- **Pool de connexions** : psycopg2 ouvre et ferme une connexion par requête. En production, utiliser `psycopg2.pool` ou migrer vers `asyncpg` pour des performances meilleures sous charge.
+Si j'avais plus de temps, voici ce que j'ajouterais :
 
-- **Streaming de logs réels** : remplacer la génération batch par une ingestion continue (fichiers rotatifs, syslog, ou Filebeat) pour un pipeline orienté temps réel.
-
-- **Alerting** : ajouter un système de notifications (email, webhook Slack) déclenché quand le taux de menace dépasse un seuil configurable.
-
-- **Authentification** : l'API et le dashboard sont actuellement ouverts sans auth. En contexte de production SOC, ajouter un mécanisme d'authentification (JWT, OAuth2) est indispensable.
-
----
-
-## Variables d'environnement
-
-Copier `.env.example` en `.env` avant le premier lancement :
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Valeur par défaut | Rôle |
-|----------|------------------|------|
-| `POSTGRES_DB` | `cyna` | Nom de la base |
-| `POSTGRES_USER` | `cyna` | Utilisateur PostgreSQL |
-| `POSTGRES_PASSWORD` | `cyna_password` | Mot de passe (à changer en prod) |
-| `DATABASE_URL` | auto-construit | URL de connexion psycopg2 |
-| `IPSUM_PATH` | `/app/ipsum/ipsum.txt` | Chemin vers le feed ipsum |
-| `LOG_DIR` | `/app/logs` | Répertoire des fichiers .log générés |
-| `GENERATOR_DIR` | `/app/generator` | Répertoire Security-Log-Generator |
+- **Pool de connexions** : actuellement chaque requête API ouvre et ferme une connexion psycopg2. En production, j'utiliserais `psycopg2.pool` ou `asyncpg` pour de meilleures performances sous charge.
+- **Streaming temps réel** : remplacer la génération batch par une ingestion continue (Kafka, Filebeat) pour un vrai pipeline temps réel.
+- **Alerting automatique** : des notifications (email, webhook Slack) déclenchées quand le taux de menace dépasse un seuil configurable.
+- **Machine learning** : détection d'anomalies sur les patterns de trafic pour identifier des attaques inconnues (pas couvertes par ipsum).
+- **Authentification** : l'API et le dashboard sont actuellement ouverts. En contexte SOC réel, un mécanisme JWT ou OAuth2 serait indispensable.
+- **Géolocalisation** : une carte affichant l'origine géographique des IPs malveillantes pour visualiser d'où viennent les attaques.
 
 ---
 

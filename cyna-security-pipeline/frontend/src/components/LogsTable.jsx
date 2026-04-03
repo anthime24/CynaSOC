@@ -4,12 +4,12 @@ import { fetchApi, buildQueryString } from '../hooks/useApi.js'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-const CARD_STYLE = {
-  backgroundColor: '#0a0550',
-  border: '1px solid #1a0e7a',
+const cardStyle = (darkMode) => ({
+  backgroundColor: darkMode ? '#0a0550' : '#FFFFFF',
+  border: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
   borderRadius: '12px',
   padding: '20px 24px',
-}
+})
 
 const SEVERITY_COLORS = {
   low: '#22C55E',
@@ -120,18 +120,18 @@ function formatTimestamp(ts) {
   }
 }
 
-const SELECT_STYLE = {
-  backgroundColor: '#040130',
-  border: '1px solid #1a0e7a',
-  color: '#F8FAFC',
+const selectStyle = (darkMode) => ({
+  backgroundColor: darkMode ? '#040130' : '#FFFFFF',
+  border: `1px solid ${darkMode ? '#1a0e7a' : '#CBD5E1'}`,
+  color: darkMode ? '#F8FAFC' : '#1e1b4b',
   borderRadius: '6px',
   padding: '4px 8px',
   fontSize: '12px',
   outline: 'none',
   cursor: 'pointer',
-}
+})
 
-export default function LogsTable({ filters, refreshToken }) {
+export default function LogsTable({ filters, refreshToken, darkMode }) {
   const [data, setData] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -250,8 +250,8 @@ export default function LogsTable({ filters, refreshToken }) {
     fontWeight: 600,
     color: '#94A3B8',
     textAlign: 'left',
-    borderBottom: '1px solid #1a0e7a',
-    backgroundColor: '#040130',
+    borderBottom: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
+    backgroundColor: darkMode ? '#040130' : '#F8FAFC',
     cursor: field ? 'pointer' : 'default',
     whiteSpace: 'nowrap',
     userSelect: 'none',
@@ -260,13 +260,13 @@ export default function LogsTable({ filters, refreshToken }) {
   const tdStyle = {
     padding: '10px 12px',
     fontSize: '12px',
-    color: '#F8FAFC',
-    borderBottom: '1px solid #1a0e7a33',
+    color: darkMode ? '#F8FAFC' : '#1e1b4b',
+    borderBottom: `1px solid ${darkMode ? '#1a0e7a33' : '#E2E8F066'}`,
     whiteSpace: 'nowrap',
   }
 
   return (
-    <div style={CARD_STYLE}>
+    <div style={cardStyle(darkMode)}>
       {/* Header */}
       <div
         style={{
@@ -278,7 +278,7 @@ export default function LogsTable({ filters, refreshToken }) {
           gap: '8px',
         }}
       >
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#F8FAFC' }}>
+        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: darkMode ? '#F8FAFC' : '#1e1b4b' }}>
           Logs malveillants{' '}
           <span style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 400 }}>
             ({total.toLocaleString()} résultats)
@@ -370,7 +370,7 @@ export default function LogsTable({ filters, refreshToken }) {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          style={SELECT_STYLE}
+          style={selectStyle(darkMode)}
         >
           <option value="">Tous types</option>
           <option value="ids">IDS</option>
@@ -382,7 +382,7 @@ export default function LogsTable({ filters, refreshToken }) {
         <select
           value={filterSeverity}
           onChange={(e) => setFilterSeverity(e.target.value)}
-          style={SELECT_STYLE}
+          style={selectStyle(darkMode)}
         >
           <option value="">Toutes sévérités</option>
           <option value="low">Low</option>
@@ -444,13 +444,13 @@ export default function LogsTable({ filters, refreshToken }) {
                 <tr
                   key={i}
                   style={{
-                    backgroundColor: i % 2 === 0 ? 'transparent' : '#04013022',
+                    backgroundColor: i % 2 === 0 ? 'transparent' : (darkMode ? '#04013022' : '#F8FAFC55'),
                     transition: 'background-color 0.1s',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1a0e7a22')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = i % 2 === 0 ? 'transparent' : '#04013022')}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = darkMode ? '#1a0e7a22' : '#EEF2FF')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = i % 2 === 0 ? 'transparent' : (darkMode ? '#04013022' : '#F8FAFC55'))}
                 >
-                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '11px', color: '#94A3B8' }}>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '11px', color: darkMode ? '#94A3B8' : '#64748B' }}>
                     {formatTimestamp(row.timestamp)}
                   </td>
                   <td style={{ ...tdStyle, fontFamily: 'monospace', color: '#7C00FF', fontWeight: 500 }}>
@@ -465,7 +465,7 @@ export default function LogsTable({ filters, refreshToken }) {
                   <td style={tdStyle}>
                     <ConfidenceBadge score={row.confidence_level} />
                   </td>
-                  <td style={{ ...tdStyle, color: '#94A3B8', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <td style={{ ...tdStyle, color: darkMode ? '#94A3B8' : '#64748B', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {row.event_type || 'N/A'}
                   </td>
                 </tr>
@@ -487,7 +487,7 @@ export default function LogsTable({ filters, refreshToken }) {
             gap: '8px',
           }}
         >
-          <span style={{ fontSize: '12px', color: '#94A3B8' }}>
+          <span style={{ fontSize: '12px', color: darkMode ? '#94A3B8' : '#64748B' }}>
             Page {page} / {totalPages} ({total.toLocaleString()} résultats)
           </span>
           <div style={{ display: 'flex', gap: '4px' }}>
@@ -503,9 +503,9 @@ export default function LogsTable({ filters, refreshToken }) {
                 disabled={disabled}
                 title={title}
                 style={{
-                  backgroundColor: disabled ? 'transparent' : '#040130',
-                  border: '1px solid #1a0e7a',
-                  color: disabled ? '#1a0e7a' : '#94A3B8',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${darkMode ? '#1a0e7a' : '#E2E8F0'}`,
+                  color: disabled ? (darkMode ? '#1a0e7a' : '#CBD5E1') : '#94A3B8',
                   borderRadius: '6px',
                   padding: '4px 8px',
                   cursor: disabled ? 'not-allowed' : 'pointer',
