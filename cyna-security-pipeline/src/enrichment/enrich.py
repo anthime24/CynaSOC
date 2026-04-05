@@ -28,7 +28,7 @@ STATS_SQL = """
     SELECT
         COUNT(*)                                        AS total_enriched,
         COUNT(DISTINCT matched_ip)                      AS unique_malicious_ips,
-        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM security_logs), 2) AS pct_malicious
+        ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM security_logs), 0), 2) AS pct_malicious
     FROM enriched_logs
     WHERE is_malicious = TRUE
 """

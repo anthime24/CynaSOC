@@ -61,6 +61,7 @@ def generate_logs():
         return
 
     os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(str(gen_dir / "logs"), exist_ok=True)
     config_path = gen_dir / "config.yaml"
 
     for log_type in ["ids", "access", "endpoint"]:
