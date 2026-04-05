@@ -3,16 +3,16 @@ services:
     image: postgres:15
     container_name: cyna-db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-cyna}
+      POSTGRES_USER: ${POSTGRES_USER:-cyna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cyna_password}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./config/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cyna} -d ${POSTGRES_DB:-cyna}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -24,7 +24,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyna}:${POSTGRES_PASSWORD:-cyna_password}@db:5432/${POSTGRES_DB:-cyna}
       IPSUM_PATH: /app/ipsum/ipsum.txt
       LOG_DIR: /app/logs
       GENERATOR_DIR: /app/generator
@@ -43,7 +43,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyna}:${POSTGRES_PASSWORD:-cyna_password}@db:5432/${POSTGRES_DB:-cyna}
       IPSUM_PATH: /app/ipsum/ipsum.txt
       LOG_DIR: /app/logs
       GENERATOR_DIR: /app/generator
