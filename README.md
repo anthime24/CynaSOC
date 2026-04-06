@@ -376,6 +376,11 @@ SELECT log_id, COUNT(*) as nb FROM enriched_logs GROUP BY log_id HAVING COUNT(*)
 
 **Solution :** PostgreSQL exposé sur `5433` en local (`5433:5432` dans `docker-compose.yml`). Internalement, les containers communiquent toujours sur le port `5432` standard via le réseau Docker.
 
+### 5. Timeline inutilisable — tous les logs au même instant
+
+**Le problème :** le Security-Log-Generator est configuré avec `write_time: 0` dans `config.yaml`, ce qui produit les 500 événements quasi simultanément. Combiné avec le `TRUNCATE` qui repart de zéro à chaque run, la timeline n'affichait qu'un seul point isolé — aucune évolution visible, aucun historique exploitable pour un analyste SOC.
+
+**Solution :** j'ai ajouté une étape de redistribution des timestamps après le parsing et avant l'insertion en base. Les timestamps sont répartis aléatoirement sur les 7 derniers jours avec un biais vers les heures de bureau (8h–18h) pour simuler un trafic réaliste. Résultat : la timeline affiche une semaine d'activité avec des variations crédibles, permettant de repérer visuellement les pics d'activité suspecte.
 ---
 
 ## Structure du repo
