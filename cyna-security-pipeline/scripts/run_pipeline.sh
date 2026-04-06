@@ -16,6 +16,7 @@ echo "[pipeline] LOG_DIR=$LOG_DIR"
 echo "[pipeline] IPSUM_PATH=$IPSUM_PATH"
 
 mkdir -p "$LOG_DIR"
+mkdir -p "$GENERATOR_DIR/logs"
 
 # Étape 0 — Génération des logs
 echo "[pipeline] Étape 0/3 : génération des logs (ids, access, endpoint)"

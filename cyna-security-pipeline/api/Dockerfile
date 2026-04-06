@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py pipeline_runner.py ./
+RUN mkdir -p /app/logs /app/generator/logs
 
 EXPOSE 8000
 
